@@ -561,6 +561,10 @@ void stm_ts_reinit(void *data)
 	ts->plat_data->touch_pre_noise_status = 0;
 	ts->plat_data->wet_mode = 0;
 
+	if (ts->charger_mode != TYPE_WIRE_CHARGER_NONE)
+		stm_ts_set_wirecharger_mode(ts);
+#if 0
+
 	ts->stm_ts_command(ts, STM_TS_CMD_CLEAR_ALL_EVENT, true);
 	stm_ts_release_all_finger(ts);
 
@@ -572,13 +576,12 @@ void stm_ts_reinit(void *data)
 
 	stm_ts_set_cover_type(ts, ts->plat_data->touch_functions & STM_TS_TOUCHTYPE_BIT_COVER);
 
+
 	stm_ts_set_custom_library(ts);
 	stm_ts_set_press_property(ts);
-	stm_ts_set_fod_finger_merge(ts);
 
 	if (ts->plat_data->support_fod && ts->plat_data->fod_data.set_val)
 		stm_ts_set_fod_rect(ts);
-
 	/* Power mode */
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 		stm_ts_set_opmode(ts, STM_TS_OPMODE_LOWPOWER);
@@ -601,8 +604,11 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+#endif
+
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
+	return;
 	
 }
 /*
@@ -1070,9 +1076,10 @@ int stm_ts_stop_device(void *data)
 
 	input_info(true, &ts->client->dev, "%s\n", __func__);
 
+#if 0	
 	if (ts->sec.fac_dev)
 		get_lp_dump(ts->sec.fac_dev, NULL, NULL);
-
+#endif
 	mutex_lock(&ts->device_mutex);
 
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
@@ -1120,6 +1127,8 @@ int stm_ts_start_device(void *data)
 	ts->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
 	ts->plat_data->touch_noise_status = 0;
 
+#if 0
+
 	ret = stm_ts_wait_for_ready(ts);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
@@ -1130,15 +1139,18 @@ int stm_ts_start_device(void *data)
 	ret = stm_ts_read_chip_id(ts);
 	if (ret < 0)
 		input_err(true, &ts->client->dev, "%s: Failed to read chip id\n", __func__);
+#endif
 
 	ts->plat_data->init(ts);
 
+#if 0
 err:
 	/* Sense_on */
 	address = STM_TS_CMD_SENSE_ON;
 	ret = ts->stm_ts_i2c_write(ts, &address, 1, NULL, 0);
 	if (ret < 0)
 		input_err(true, &ts->client->dev, "%s: fail to write Sense_on\n", __func__);
+#endif	
 
 	enable_irq(ts->irq);
 out:
@@ -1150,9 +1162,9 @@ static int stm_ts_hw_init(struct i2c_client *client)
 {
 	struct stm_ts_data *ts = i2c_get_clientdata(client);
 	int ret = 0;
-	int retry = 3;
-	u8 reg[3] = { 0 };
-	u8 data[STM_TS_EVENT_BUFF_SIZE] = { 0 };
+//	int retry = 3;
+//	u8 reg[3] = { 0 };
+//	u8 data[STM_TS_EVENT_BUFF_SIZE] = { 0 };
 	ts->plat_data->pinctrl_configure(&ts->client->dev, true);
 
 	ts->plat_data->power(&ts->client->dev, true);
@@ -1161,6 +1173,7 @@ static int stm_ts_hw_init(struct i2c_client *client)
 
 	ts->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
 
+#if 0
 	ret = ts->stm_ts_i2c_read(ts, &reg[0], 1, data, STM_TS_EVENT_BUFF_SIZE);
 	if (ret == -ENOTCONN) {
 		return ret;
@@ -1240,6 +1253,7 @@ static int stm_ts_hw_init(struct i2c_client *client)
 		kfree(ts->pFrame);
 		return -ENOMEM;
 	}
+#endif
 
 	/* fts driver set functional feature */
 	ts->plat_data->touch_count = 0;
@@ -1251,11 +1265,14 @@ static int stm_ts_hw_init(struct i2c_client *client)
 #endif
 
 	ts->plat_data->touch_functions = STM_TS_TOUCHTYPE_DEFAULT_ENABLE;
+#if 0	
 	stm_ts_set_touch_function(ts);
 	sec_delay(10);
 
+
 	stm_ts_command(ts, STM_TS_CMD_FORCE_CALIBRATION, true);
 	stm_ts_command(ts, STM_TS_CMD_CLEAR_ALL_EVENT, true);
+#endif
 	ts->scan_mode = STM_TS_SCAN_MODE_DEFAULT;
 	stm_ts_set_scanmode(ts, ts->scan_mode);
 
@@ -1267,8 +1284,9 @@ static int stm_ts_hw_init(struct i2c_client *client)
 		ts->flip_status_current = STM_TS_STATUS_UNFOLDING;
 
 	input_info(true, &ts->client->dev, "%s: Initialized\n", __func__);
-
+#if 0
 	stm_ts_init_proc(ts);
+#endif
 
 	return ret;
 }
@@ -1460,6 +1478,10 @@ void stm_ts_release(struct i2c_client *client)
 	if (ts->hall_ic_nb.notifier_call)
 		hall_notifier_unregister(&ts->hall_ic_nb);
 #endif
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	vbus_notifier_unregister(&ts->vbus_nb);
+#endif
 	cancel_delayed_work_sync(&ts->work_read_info);
 	cancel_delayed_work_sync(&ts->work_print_info);
 	cancel_delayed_work_sync(&ts->work_read_functions);
@@ -1506,14 +1528,17 @@ int stm_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	ts = i2c_get_clientdata(client);
 
 	ret = stm_ts_hw_init(client);
+#if 0
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: fail to init hw\n", __func__);
 		stm_ts_release(client);
 		return ret;
 	}
 
+
 	stm_ts_get_custom_library(ts);
 	stm_ts_set_custom_library(ts);
+#endif
 
 	input_info(true, &ts->client->dev, "%s: request_irq = %d\n", __func__, client->irq);
 	ret = request_threaded_irq(client->irq, NULL, stm_ts_irq_thread,
@@ -1536,11 +1561,17 @@ int stm_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	sec_secure_touch_register(ts, ts->plat_data->ss_touch_num, &ts->plat_data->input_dev->dev.kobj);
 #endif
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	vbus_notifier_register(&ts->vbus_nb, stm_ts_vbus_notification, VBUS_NOTIFY_DEV_CHARGER);
+#endif
+
+#if 0
 	input_err(true, &ts->client->dev, "%s: done\n", __func__);
 	input_log_fix();
 
 	if (!ts->plat_data->shutdown_called)
 		schedule_delayed_work(&ts->work_read_info, msecs_to_jiffies(50));
+#endif
 
 	return 0;
 }

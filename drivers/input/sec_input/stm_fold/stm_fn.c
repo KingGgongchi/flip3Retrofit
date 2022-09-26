@@ -337,7 +337,7 @@ void stm_ts_command(struct stm_ts_data *ts, u8 cmd, bool checkecho)
 int stm_ts_systemreset(struct stm_ts_data *ts, unsigned int msec)
 {
 	u8 address = 0xFA;
-	u8 data[5] = { 0x20, 0x00, 0x00, 0x24, 0x81 };
+	u8 data[5] = { 0x20, 0x01, 0xF2, 0x00, 0x01 };
 	int rc;
 
 	input_info(true, &ts->client->dev, "%s\n", __func__);
@@ -349,6 +349,12 @@ int stm_ts_systemreset(struct stm_ts_data *ts, unsigned int msec)
 	sec_delay(msec + 10);
 
 	rc = stm_ts_wait_for_ready(ts);
+
+	// Workaround
+	data[2] = 0xC0;
+	data[3] = 0x24;
+	data[4] = 0x80;
+	ts->stm_ts_i2c_write(ts, &address, 1, &data[0], 5);
 
 	stm_ts_release_all_finger(ts);
 
@@ -594,14 +600,17 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 
 int stm_ts_set_scanmode(struct stm_ts_data *ts, u8 scan_mode)
 {
-	u8 address[3] = { 0xA0, 0x00, scan_mode };
+	u8 address[3] = { 0x00, 0x10, scan_mode };
 	int rc;
-
+#if 0
 	rc = stm_ts_wait_for_echo_event(ts, &address[0], 3, 0);
 	if (rc < 0) {
 		input_info(true, &ts->client->dev, "%s: timeout, ret = %d\n", __func__, rc);
 		return rc;
-	}
+#else
+	rc = ts->stm_ts_i2c_write(ts, &address[0], 3, NULL, 0);
+	sec_delay(50);
+#endif
 
 	input_info(true, &ts->client->dev, "%s: 0x%02X\n", __func__, scan_mode);
 
@@ -1152,6 +1161,62 @@ int stm_ts_set_charger_mode(struct stm_ts_data *ts)
 
 	return ret;
 }
+
+int stm_ts_set_wirecharger_mode(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 address;
+	u8 data;
+
+	if (ts->charger_mode == TYPE_WIRE_CHARGER_NONE) {
+		data = STM_TS_BIT_CHARGER_MODE_NORMAL;
+	} else if (ts->charger_mode == TYPE_WIRE_CHARGER) {
+		data = STM_TS_BIT_CHARGER_MODE_WIRE_CHARGER;
+	} else {
+		input_err(true, &ts->client->dev, "%s: not supported mode %d\n",
+				__func__, ts->plat_data->wirelesscharger_mode);
+		return SEC_ERROR;
+	}
+
+	address = STM_TS_CMD_SET_GET_WIRECHARGER_MODE;
+	ret = ts->stm_ts_i2c_write(ts, &address, 1, &data, 1);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: Failed to write mode 0x%02X (cmd:%d), ret=%d\n",
+				__func__, address, ts->charger_mode, ret);
+
+	return ret;
+}
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+int stm_ts_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data)
+{
+	struct stm_ts_data *ts = container_of(nb, struct stm_ts_data, vbus_nb);
+	vbus_status_t vbus_type = *(vbus_status_t *)data;
+
+	if (ts->plat_data->shutdown_called)
+		return 0;
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:
+		ts->charger_mode = TYPE_WIRE_CHARGER;
+		break;
+	case STATUS_VBUS_LOW:
+		ts->charger_mode = TYPE_WIRE_CHARGER_NONE;
+		break;
+	default:
+		goto out;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %sabled\n", __func__,
+				ts->charger_mode == TYPE_WIRE_CHARGER_NONE ? "dis" : "en");
+
+	stm_ts_set_wirecharger_mode(ts);
+
+out:
+	return 0;
+}
+#endif
 
 /*
  *	flag     1  :  set edge handler

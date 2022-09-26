@@ -42,6 +42,10 @@
 #define SECURE_TOUCH_DISABLE	0
 #endif
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#endif
+
 #include "../sec_tclm_v2.h"
 #if IS_ENABLED(CONFIG_INPUT_TOUCHSCREEN_TCLMV2)
 #define TCLM_CONCEPT
@@ -456,6 +460,10 @@ struct stm_ts_data {
 	int panel_revision;			/* Octa panel revision */
 	u32 chip_id;
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	struct notifier_block vbus_nb;
+#endif	
+
 	int flip_status_prev;
 	int flip_status;
 	int flip_status_current;
@@ -591,6 +599,7 @@ int stm_ts_ear_detect_enable(struct stm_ts_data *ts, u8 enable);
 int stm_ts_pocket_mode_enable(struct stm_ts_data *ts, u8 enable);
 int stm_ts_set_charger_mode(struct stm_ts_data *ts);
 void stm_ts_set_cover_type(struct stm_ts_data *ts, bool enable);
+int stm_ts_set_wirecharger_mode(struct stm_ts_data *ts);
 int stm_ts_set_press_property(struct stm_ts_data *ts);
 int stm_ts_get_sysinfo_data(struct stm_ts_data *ts, u8 sysinfo_addr, u8 read_cnt, u8 *data);
 void stm_ts_change_scan_rate(struct stm_ts_data *ts, u8 rate);
@@ -629,6 +638,11 @@ int stm_ts_tclm_execute_force_calibration(struct i2c_client *client, int cal_mod
 void stm_ts_checking_miscal(struct stm_ts_data *ts);
 
 void stm_switching_work(struct work_struct *work);
+
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+int stm_ts_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data);
+#endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 int stm_notifier_call(struct notifier_block *n, unsigned long data, void *v);

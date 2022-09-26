@@ -253,6 +253,11 @@ enum wireless_charger_param {
 	TYPE_WIRELESS_BATTERY_PACK	= 3,
 };
 
+enum charger_param {
+	TYPE_WIRE_CHARGER_NONE		= 0,
+	TYPE_WIRE_CHARGER		= 1,
+};
+
 enum set_temperature_state {
 	SEC_INPUT_SET_TEMPERATURE_NORMAL = 0,
 	SEC_INPUT_SET_TEMPERATURE_IN_IRQ,
